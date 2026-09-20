@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube アップロード & 映り込み対策</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header>
+  <h1>YouTube アップロード & 映り込み対策</h1>
+  <div id="authStatus" class="auth-status">確認中...</div>
+</header>
+
+<main>
+  <section id="uploadSection" class="panel">
+    <h2>1. 素材動画をアップロード</h2>
+    <div class="row">
+      <input type="file" id="videoFileInput" accept="video/*">
+      <button id="uploadBtn">アップロード</button>
+    </div>
+    <div id="uploadProgressWrap" class="progress-wrap" hidden>
+      <progress id="uploadProgressBar" max="100" value="0"></progress>
+      <span id="uploadProgressText"></span>
+    </div>
+
+    <h3>アップロード済み動画</h3>
+    <select id="videoSelect"><option value="">-- 選択してください --</option></select>
+  </section>
+
+  <section id="editorSection" class="panel" hidden>
+    <h2>2. 映り込みチェック・編集</h2>
+    <p class="hint">
+      候補は自動検出の目安です。見逃しがあり得るため、必ず全編を目視で確認し、必要に応じて手動で区間を追加してください。
+    </p>
+
+    <video id="mainPlayer" controls></video>
+
+    <div class="row">
+      <button id="detectBtn">AI解析を実行(候補を提示)</button>
+      <div id="detectionProgressWrap" class="progress-wrap" hidden>
+        <progress id="detectionProgressBar" max="100" value="0"></progress>
+        <span id="detectionProgressText"></span>
+      </div>
+    </div>
+
+    <div id="timelineSection">
+      <div id="timeline"><div id="timelinePlayhead"></div></div>
+      <div class="timeline-legend">
+        <span class="legend-item"><i class="dot undecided"></i>未確認</span>
+        <span class="legend-item"><i class="dot keep"></i>そのまま</span>
+        <span class="legend-item"><i class="dot blur"></i>ぼかし</span>
+        <span class="legend-item"><i class="dot cut"></i>カット</span>
+      </div>
+      <p class="hint small">タイムライン上をドラッグすると、候補にない区間を手動で追加できます。</p>
+    </div>
+
+    <div id="candidateListWrap">
+      <h3>区間一覧</h3>
+      <ul id="candidateList"></ul>
+    </div>
+
+    <div id="decisionPanel" class="panel inner" hidden>
+      <h3>区間の確認・処理選択</h3>
+      <div id="decisionTimeLabel"></div>
+      <div class="row">
+        <button id="loopPlayBtn">この区間をループ再生</button>
+        <button id="stopLoopBtn" hidden>ループ停止</button>
+      </div>
+
+      <div class="row action-choice">
+        <label><input type="radio" name="action" value="keep" checked> そのまま</label>
+        <label><input type="radio" name="action" value="blur"> ぼかし</label>
+        <label><input type="radio" name="action" value="cut"> カット</label>
+      </div>
+
+      <div id="blurOptions" hidden>
+        <div class="row action-choice">
+          <label><input type="radio" name="blurMode" value="tracked" checked> 映り込んだ範囲だけぼかす</label>
+          <label><input type="radio" name="blurMode" value="fixed"> 画面の一部を固定でぼかす</label>
+        </div>
+        <p class="hint small" id="trackedHint">検出データを基に、区間内で映り込んだ位置を自動追従してぼかします(区分的近似)。</p>
+
+        <div id="fixedRegionEditor" hidden>
+          <p class="hint small">静止画上をドラッグしてぼかす範囲を指定してください。</p>
+          <canvas id="regionCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="previewBlurBtn" hidden>ぼかしをプレビュー</button>
+        <button id="saveDecisionBtn">この内容で保存</button>
+        <button id="deleteDecisionBtn" hidden>決定を削除</button>
+      </div>
+      <video id="previewPlayer" controls hidden></video>
+      <div id="previewStatus"></div>
+    </div>
+
+    <div class="row pipeline-row">
+      <button id="runPipelineBtn">編集を確定して動画を生成</button>
+      <div id="pipelineProgressWrap" class="progress-wrap" hidden>
+        <span id="pipelineStatusText">処理中...</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="uploadYoutubeSection" class="panel" hidden>
+    <h2>3. YouTube にアップロード</h2>
+    <video id="finalPreviewPlayer" controls></video>
+    <div class="form-grid">
+      <label>タイトル<input id="ytTitle" type="text"></label>
+      <label>説明<textarea id="ytDescription" rows="4"></textarea></label>
+      <label>タグ(カンマ区切り)<input id="ytTags" type="text"></label>
+      <label>公開設定
+        <select id="ytPrivacy">
+          <option value="private">非公開</option>
+          <option value="unlisted">限定公開</option>
+          <option value="public">公開</option>
+        </select>
+      </label>
+    </div>
+    <button id="uploadYoutubeBtn">YouTube にアップロード開始</button>
+    <div id="ytUploadStatus"></div>
+  </section>
+</main>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
