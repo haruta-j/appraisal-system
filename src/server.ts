@@ -6,7 +6,6 @@ import { authRouter } from './routes/auth';
 import { videosRouter } from './routes/videos';
 import { detectionRouter } from './routes/detection';
 import { decisionsRouter } from './routes/decisions';
-import { previewRouter, previewFilesRouter } from './routes/preview';
 import { pipelineRouter } from './routes/pipeline';
 import { youtubeUploadRouter } from './routes/youtubeUpload';
 
@@ -28,10 +27,8 @@ app.use('/auth', authRouter);
 app.use('/api/videos', videosRouter);
 app.use('/api/videos', detectionRouter);
 app.use('/api/videos', decisionsRouter);
-app.use('/api/videos', previewRouter);
 app.use('/api/videos', pipelineRouter);
 app.use('/api/videos', youtubeUploadRouter);
-app.use('/api/previews', previewFilesRouter);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

@@ -4,7 +4,6 @@ import { randomUUID } from 'crypto';
 import ffmpeg from 'fluent-ffmpeg';
 import { config } from '../config';
 import { hasAudioStream } from './ffmpeg';
-import { buildBlurFilterComplex, BlurFilterInput } from './blurFilter';
 import { EditDecisionRecord, TimelineSegmentMapping, VideoRecord } from '../types';
 import * as videosDb from '../db/videos';
 import * as decisionsDb from '../db/editDecisions';
@@ -71,7 +70,7 @@ function computeTimelineMapping(segments: KeepSegment[]): TimelineSegmentMapping
 export async function runPipeline(videoId: string): Promise<string> {
   const video = videosDb.getVideo(videoId);
   if (!video) throw new Error('Video not found');
-  if (!video.durationSec || !video.width || !video.height) {
+  if (!video.durationSec) {
     throw new Error('Video metadata incomplete; cannot run pipeline');
   }
 
@@ -80,11 +79,11 @@ export async function runPipeline(videoId: string): Promise<string> {
   videosDb.updateVideoStatus(videoId, 'processing');
 
   try {
-    const outputPath = await applyEdits(video, decisions, video.durationSec);
-
     const cuts = mergeCutIntervals(decisions, video.durationSec);
     const keepSegments = computeKeepSegments(cuts, video.durationSec);
     const timelineMapping = computeTimelineMapping(keepSegments);
+
+    const outputPath = await applyCuts(video, keepSegments);
 
     runsDb.completeEditLogRun(run.id, timelineMapping, outputPath);
     videosDb.setVideoProcessedPath(videoId, outputPath);
@@ -97,56 +96,22 @@ export async function runPipeline(videoId: string): Promise<string> {
   }
 }
 
-async function applyEdits(
-  video: VideoRecord,
-  decisions: EditDecisionRecord[],
-  duration: number
-): Promise<string> {
-  const blurDecisions: BlurFilterInput[] = decisions
-    .filter((d) => d.action === 'blur' && d.blurMode)
-    .map((d) => ({
-      startTime: d.startTime,
-      endTime: d.endTime,
-      blurMode: d.blurMode!,
-      blurRegion: d.blurRegion,
-      trackedSamples: d.trackedSamples,
-    }));
-
-  const audioPresent = await hasAudioStream(video.sourcePath);
-  const cuts = mergeCutIntervals(decisions, duration);
-  const keepSegments = computeKeepSegments(cuts, duration);
-
+/** Trims out the cut intervals and concatenates the remaining segments. No blur is applied
+ *  here -- privacy blurring (if needed) is done afterwards in YouTube Studio. */
+async function applyCuts(video: VideoRecord, keepSegments: KeepSegment[]): Promise<string> {
   if (keepSegments.length === 0) {
     throw new Error('All content is cut; nothing left to produce');
   }
 
+  const audioPresent = await hasAudioStream(video.sourcePath);
   const filters: string[] = [];
-  let videoLabel = '0:v';
-  if (blurDecisions.length > 0) {
-    const built = buildBlurFilterComplex('0:v', blurDecisions, video.width!, video.height!);
-    filters.push(...built.filters);
-    videoLabel = built.outputLabel;
-  }
-
-  // A filtergraph pad (as opposed to a raw input stream reference like "0:v") can only be
-  // consumed once; explicitly fan it out before feeding it into multiple trim filters.
-  let perSegmentVideoLabels: string[];
-  if (keepSegments.length === 1) {
-    perSegmentVideoLabels = [videoLabel];
-  } else {
-    perSegmentVideoLabels = keepSegments.map((_, idx) => `vsplit${idx}`);
-    filters.push(
-      `[${videoLabel}]split=${keepSegments.length}${perSegmentVideoLabels.map((l) => `[${l}]`).join('')}`
-    );
-  }
-
   const videoSegLabels: string[] = [];
   const audioSegLabels: string[] = [];
 
   keepSegments.forEach((seg, idx) => {
     const vLabel = `vseg${idx}`;
     filters.push(
-      `[${perSegmentVideoLabels[idx]}]trim=${seg.originalStart.toFixed(3)}:${seg.originalEnd.toFixed(3)},setpts=PTS-STARTPTS[${vLabel}]`
+      `[0:v]trim=${seg.originalStart.toFixed(3)}:${seg.originalEnd.toFixed(3)},setpts=PTS-STARTPTS[${vLabel}]`
     );
     videoSegLabels.push(vLabel);
 
@@ -172,6 +137,19 @@ async function applyEdits(
 
   fs.mkdirSync(config.paths.processed, { recursive: true });
   const outputPath = path.join(config.paths.processed, `${randomUUID()}.mp4`);
+
+  // A single kept segment spanning the whole video means no cuts at all; re-muxing with a
+  // stream copy avoids a needless re-encode.
+  if (keepSegments.length === 1 && keepSegments[0].originalStart === 0) {
+    return new Promise((resolve, reject) => {
+      ffmpeg(video.sourcePath)
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+        .output(outputPath)
+        .on('end', () => resolve(outputPath))
+        .on('error', (err) => reject(err))
+        .run();
+    });
+  }
 
   const outputOptions = [
     '-map',

@@ -55,9 +55,6 @@ CREATE TABLE IF NOT EXISTS edit_decisions (
   start_time REAL NOT NULL,
   end_time REAL NOT NULL,
   action TEXT NOT NULL,
-  blur_mode TEXT,
-  blur_region_json TEXT,
-  tracked_samples_json TEXT,
   label TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

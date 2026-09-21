@@ -8,7 +8,6 @@
     manualDrafts: [], // unsaved manual ranges: {id, startTime, endTime}
     selectedItem: null, // {key, type, startTime, endTime, candidate?, decision?, draft?}
     loopTimer: null,
-    fixedRegion: null, // {x,y,width,height} in native video pixel coords
     dragState: null,
   };
 
@@ -338,7 +337,7 @@
       const badge = document.createElement('span');
       const action = actionOf(item);
       badge.className = `badge ${action}`;
-      badge.textContent = { undecided: '未確認', keep: 'そのまま', blur: 'ぼかし', cut: 'カット' }[action];
+      badge.textContent = { undecided: '未確認', keep: 'そのまま', cut: 'カット' }[action];
       li.appendChild(label);
       li.appendChild(badge);
       li.addEventListener('click', () => selectItem(item));
@@ -360,39 +359,14 @@
     const panel = el('decisionPanel');
     panel.hidden = false;
     el('decisionTimeLabel').textContent = `区間: ${fmtTime(item.startTime)} 〜 ${fmtTime(item.endTime)}`;
-    el('previewPlayer').hidden = true;
-    el('previewStatus').textContent = '';
-    state.fixedRegion = item.decision && item.decision.blurRegion ? { ...item.decision.blurRegion } : null;
 
     const action = item.decision ? item.decision.action : 'keep';
     document.querySelectorAll('input[name=action]').forEach((r) => { r.checked = r.value === action; });
-    const blurMode = item.decision && item.decision.blurMode ? item.decision.blurMode : 'tracked';
-    document.querySelectorAll('input[name=blurMode]').forEach((r) => { r.checked = r.value === blurMode; });
 
     el('deleteDecisionBtn').hidden = !item.decision;
 
-    updateActionUI();
-
     mainPlayer().pause();
     mainPlayer().currentTime = item.startTime;
-  }
-
-  function updateActionUI() {
-    const action = document.querySelector('input[name=action]:checked').value;
-    el('blurOptions').hidden = action !== 'blur';
-    el('previewBlurBtn').hidden = action !== 'blur';
-    if (action === 'blur') updateBlurModeUI();
-  }
-
-  function updateBlurModeUI() {
-    const mode = document.querySelector('input[name=blurMode]:checked').value;
-    el('fixedRegionEditor').hidden = mode !== 'fixed';
-    if (mode === 'fixed') setupRegionCanvas();
-  }
-
-  function setupActionRadios() {
-    document.querySelectorAll('input[name=action]').forEach((r) => r.addEventListener('change', updateActionUI));
-    document.querySelectorAll('input[name=blurMode]').forEach((r) => r.addEventListener('change', updateBlurModeUI));
   }
 
   // ---------- Loop playback ----------
@@ -426,71 +400,7 @@
     el('stopLoopBtn').hidden = true;
   }
 
-  // ---------- Fixed-region canvas ----------
-
-  function setupRegionCanvas() {
-    if (!state.video || !state.selectedItem) return;
-    const canvas = el('regionCanvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = state.video.width;
-    canvas.height = state.video.height;
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-
-    const player = mainPlayer();
-    const midTime = (state.selectedItem.startTime + state.selectedItem.endTime) / 2;
-
-    const draw = () => {
-      ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
-      if (state.fixedRegion) drawRegionBox(ctx, state.fixedRegion);
-    };
-
-    const onSeeked = () => {
-      draw();
-      player.removeEventListener('seeked', onSeeked);
-    };
-    player.addEventListener('seeked', onSeeked);
-    player.pause();
-    player.currentTime = midTime;
-
-    canvas.onmousedown = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const startX = (e.clientX - rect.left) * scaleX;
-      const startY = (e.clientY - rect.top) * scaleY;
-
-      const onMove = (moveEvt) => {
-        const x = (moveEvt.clientX - rect.left) * scaleX;
-        const y = (moveEvt.clientY - rect.top) * scaleY;
-        state.fixedRegion = {
-          x: Math.max(0, Math.min(startX, x)),
-          y: Math.max(0, Math.min(startY, y)),
-          width: Math.abs(x - startX),
-          height: Math.abs(y - startY),
-        };
-        draw();
-      };
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    };
-
-    draw();
-  }
-
-  function drawRegionBox(ctx, region) {
-    ctx.strokeStyle = '#dc2626';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(region.x, region.y, region.width, region.height);
-    ctx.fillStyle = 'rgba(220,38,38,0.15)';
-    ctx.fillRect(region.x, region.y, region.width, region.height);
-  }
-
-  // ---------- Preview / Save / Delete ----------
+  // ---------- Save / Delete ----------
 
   function currentCandidateId() {
     const item = state.selectedItem;
@@ -503,7 +413,7 @@
   function buildDecisionBody() {
     const item = state.selectedItem;
     const action = document.querySelector('input[name=action]:checked').value;
-    const body = {
+    return {
       id: item.decision ? item.decision.id : undefined,
       candidateId: currentCandidateId(),
       source: item.type === 'candidate' ? 'detected' : 'manual',
@@ -511,44 +421,6 @@
       endTime: item.endTime,
       action,
     };
-    if (action === 'blur') {
-      const blurMode = document.querySelector('input[name=blurMode]:checked').value;
-      body.blurMode = blurMode;
-      if (blurMode === 'fixed') {
-        if (!state.fixedRegion || state.fixedRegion.width < 4 || state.fixedRegion.height < 4) {
-          throw new Error('固定ぼかしの範囲を静止画上でドラッグして指定してください');
-        }
-        body.blurRegion = state.fixedRegion;
-      }
-    }
-    return body;
-  }
-
-  function setupPreview() {
-    el('previewBlurBtn').addEventListener('click', async () => {
-      let body;
-      try {
-        body = buildDecisionBody();
-      } catch (err) {
-        alert(err.message);
-        return;
-      }
-      el('previewStatus').textContent = 'プレビュー生成中...';
-      try {
-        const result = await api(`/api/videos/${state.video.id}/preview-blur`, {
-          method: 'POST',
-          body: JSON.stringify(body),
-        });
-        const player = el('previewPlayer');
-        player.src = result.previewUrl;
-        player.hidden = false;
-        player.play();
-        el('previewStatus').textContent = 'ぼかし適用後のプレビューです(処理前の確認用)。';
-      } catch (err) {
-        el('previewStatus').textContent = '';
-        alert('プレビュー生成に失敗しました: ' + err.message);
-      }
-    });
   }
 
   function setupSaveDelete() {
@@ -692,9 +564,7 @@
     setupVideoSelect();
     setupDetection();
     setupTimelineDrag();
-    setupActionRadios();
     setupLoopControls();
-    setupPreview();
     setupSaveDelete();
     setupPipeline();
     setupYoutubeUpload();

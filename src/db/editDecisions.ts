@@ -1,13 +1,6 @@
 import { randomUUID } from 'crypto';
 import { db } from './connection';
-import {
-  BlurMode,
-  BlurRegion,
-  DetectionSample,
-  EditAction,
-  EditDecisionRecord,
-  EditSource,
-} from '../types';
+import { EditAction, EditDecisionRecord, EditSource } from '../types';
 
 interface DecisionRow {
   id: string;
@@ -17,9 +10,6 @@ interface DecisionRow {
   start_time: number;
   end_time: number;
   action: EditAction;
-  blur_mode: BlurMode | null;
-  blur_region_json: string | null;
-  tracked_samples_json: string | null;
   label: string | null;
   created_at: string;
   updated_at: string;
@@ -34,11 +24,6 @@ function rowToRecord(row: DecisionRow): EditDecisionRecord {
     startTime: row.start_time,
     endTime: row.end_time,
     action: row.action,
-    blurMode: row.blur_mode,
-    blurRegion: row.blur_region_json ? (JSON.parse(row.blur_region_json) as BlurRegion) : null,
-    trackedSamples: row.tracked_samples_json
-      ? (JSON.parse(row.tracked_samples_json) as DetectionSample[])
-      : null,
     label: row.label,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -53,28 +38,15 @@ export interface UpsertDecisionInput {
   startTime: number;
   endTime: number;
   action: EditAction;
-  blurMode?: BlurMode | null;
-  blurRegion?: BlurRegion | null;
-  trackedSamples?: DetectionSample[] | null;
   label?: string | null;
 }
 
 function updateExisting(id: string, input: UpsertDecisionInput, now: string): void {
   db.prepare(
     `UPDATE edit_decisions
-     SET start_time = ?, end_time = ?, action = ?, blur_mode = ?, blur_region_json = ?, tracked_samples_json = ?, label = ?, updated_at = ?
+     SET start_time = ?, end_time = ?, action = ?, label = ?, updated_at = ?
      WHERE id = ?`
-  ).run(
-    input.startTime,
-    input.endTime,
-    input.action,
-    input.blurMode ?? null,
-    input.blurRegion ? JSON.stringify(input.blurRegion) : null,
-    input.trackedSamples ? JSON.stringify(input.trackedSamples) : null,
-    input.label ?? null,
-    now,
-    id
-  );
+  ).run(input.startTime, input.endTime, input.action, input.label ?? null, now, id);
 }
 
 export function upsertEditDecision(input: UpsertDecisionInput): EditDecisionRecord {
@@ -99,8 +71,8 @@ export function upsertEditDecision(input: UpsertDecisionInput): EditDecisionReco
   const id = randomUUID();
   db.prepare(
     `INSERT INTO edit_decisions
-       (id, video_id, candidate_id, source, start_time, end_time, action, blur_mode, blur_region_json, tracked_samples_json, label, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, video_id, candidate_id, source, start_time, end_time, action, label, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     input.videoId,
@@ -109,9 +81,6 @@ export function upsertEditDecision(input: UpsertDecisionInput): EditDecisionReco
     input.startTime,
     input.endTime,
     input.action,
-    input.blurMode ?? null,
-    input.blurRegion ? JSON.stringify(input.blurRegion) : null,
-    input.trackedSamples ? JSON.stringify(input.trackedSamples) : null,
     input.label ?? null,
     now,
     now

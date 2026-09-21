@@ -7,7 +7,6 @@
   --accent: #2563eb;
   --undecided: #d97706;
   --keep: #16a34a;
-  --blur: #7c3aed;
   --cut: #dc2626;
 }
 
@@ -117,7 +116,6 @@ select, input[type=text], input[type=file], textarea {
 .timeline-marker.selected { border-color: #111827; }
 .timeline-marker.undecided { background: var(--undecided); }
 .timeline-marker.keep { background: var(--keep); }
-.timeline-marker.blur { background: var(--blur); }
 .timeline-marker.cut { background: var(--cut); }
 
 .timeline-drag-preview {
@@ -142,7 +140,6 @@ select, input[type=text], input[type=file], textarea {
 .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .dot.undecided { background: var(--undecided); }
 .dot.keep { background: var(--keep); }
-.dot.blur { background: var(--blur); }
 .dot.cut { background: var(--cut); }
 
 #candidateList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
@@ -165,15 +162,12 @@ select, input[type=text], input[type=file], textarea {
 }
 .badge.undecided { background: var(--undecided); }
 .badge.keep { background: var(--keep); }
-.badge.blur { background: var(--blur); }
 .badge.cut { background: var(--cut); }
 
 .action-choice label { font-size: 13px; display: flex; align-items: center; gap: 4px; }
 
-#regionCanvas { border: 1px solid var(--border); border-radius: 6px; max-width: 100%; cursor: crosshair; margin-top: 8px; }
-
 .form-grid { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
 .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 
-#previewStatus, #ytUploadStatus { font-size: 12px; color: var(--muted); min-height: 16px; }
+#ytUploadStatus { font-size: 12px; color: var(--muted); min-height: 16px; }
 .pipeline-row { margin-top: 16px; }

@@ -63,15 +63,7 @@ export interface CandidateRecord {
 }
 
 export type EditSource = 'detected' | 'manual';
-export type EditAction = 'cut' | 'blur' | 'keep';
-export type BlurMode = 'tracked' | 'fixed';
-
-export interface BlurRegion {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+export type EditAction = 'cut' | 'keep';
 
 export interface EditDecisionRecord {
   id: string;
@@ -81,11 +73,6 @@ export interface EditDecisionRecord {
   startTime: number;
   endTime: number;
   action: EditAction;
-  blurMode: BlurMode | null;
-  blurRegion: BlurRegion | null;
-  /** Per-time bounding boxes used to build the "tracked" blur filter. Populated from the
-   *  linked candidate's detections, or from an on-demand detection pass for manual intervals. */
-  trackedSamples: DetectionSample[] | null;
   label: string | null;
   createdAt: string;
   updatedAt: string;
